@@ -139,6 +139,7 @@ def main():
 
     torchscript_model = th.jit.script(model)
     torchscript_model_opti = optimize_for_mobile(torchscript_model)
+
     #th.jit.save(torchscript_model_opti, "demucsv2.pt")
     torchscript_model_opti._save_for_lite_interpreter("demucsv2.ptl")
 
