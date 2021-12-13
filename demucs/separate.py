@@ -12,6 +12,7 @@ import subprocess
 import julius
 import torch as th
 import torchaudio as ta
+from torch.utils.mobile_optimizer import optimize_for_mobile
 
 from .audio import AudioFile, convert_audio_channels
 from .pretrained import is_pretrained, load_pretrained
@@ -132,16 +133,15 @@ def main():
 
     args = parser.parse_args()
     name = args.name + ".th"
-    model_path = args.models / name
-    if model_path.is_file():
-        model = load_model(model_path)
-    else:
-        if is_pretrained(args.name):
-            model = load_pretrained(args.name)
-        else:
-            print(f"No pre-trained model {args.name}", file=sys.stderr)
-            sys.exit(1)
+
+    model = load_pretrained(args.name)
     model.to(args.device)
+
+    torchscript_model = th.jit.script(model)
+    torchscript_model_opti = optimize_for_mobile(torchscript_model)
+
+    #th.jit.save(torchscript_model_opti, "demucsv2.pt")
+    torchscript_model_opti._save_for_lite_interpreter("demucsv2.ptl")
 
     out = args.out / args.name
     out.mkdir(parents=True, exist_ok=True)

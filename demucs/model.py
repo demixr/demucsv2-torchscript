@@ -104,6 +104,9 @@ class Demucs(nn.Module):
         self.encoder = nn.ModuleList()
         self.decoder = nn.ModuleList()
 
+        self.resample_begin = julius.ResampleFrac(1, 2)
+        self.resample_end = julius.ResampleFrac(2, 1)
+
         if glu:
             activation = nn.GLU(dim=1)
             ch_scale = 2
@@ -171,24 +174,19 @@ class Demucs(nn.Module):
     def forward(self, mix):
         x = mix
 
-        if self.normalize:
-            mono = mix.mean(dim=1, keepdim=True)
-            mean = mono.mean(dim=-1, keepdim=True)
-            std = mono.std(dim=-1, keepdim=True)
-        else:
-            mean = 0
-            std = 1
+        mean = 0
+        std = 1
 
         x = (x - mean) / (1e-5 + std)
 
         if self.resample:
-            x = julius.resample_frac(x, 1, 2)
+            x = self.resample_begin(x)
 
         saved = []
         for encode in self.encoder:
             x = encode(x)
             saved.append(x)
-        if self.lstm:
+        if self.lstm is not None:
             x = self.lstm(x)
         for decode in self.decoder:
             skip = center_trim(saved.pop(-1), x)
@@ -196,7 +194,7 @@ class Demucs(nn.Module):
             x = decode(x)
 
         if self.resample:
-            x = julius.resample_frac(x, 2, 1)
+            x = self.resample_end(x)
         x = x * std + mean
         x = x.view(x.size(0), len(self.sources), self.audio_channels, x.size(-1))
         return x
